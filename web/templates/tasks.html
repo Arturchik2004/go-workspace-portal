@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Задачи - ПромТехСервис</title>
+    <link rel="icon" type="image/png" href="/static/logo-gray.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+    <header class="bg-white border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <a href="/" class="text-xl font-bold text-slate-800">ПромТехСервис</a>
+            <div class="flex items-center gap-4 text-sm"><span>{{ .FullName }}</span><a href="/logout" class="text-red-600 hover:text-red-700">Выйти</a></div>
+        </div>
+    </header>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between mb-8">
+            <div><p class="text-sm font-medium text-blue-600">Рабочий процесс</p><h1 class="text-3xl font-bold">Задачи</h1><p class="mt-2 text-sm text-slate-500">Личные задачи и задачи команды</p></div>
+            <div class="flex gap-3"><button id="refresh-tasks" type="button" class="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:bg-slate-50">Обновить</button><a href="/calendar" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">К календарю</a></div>
+        </div>
+        <p id="tasks-error" class="hidden mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert"></p>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <section class="bg-slate-100 rounded-xl p-4"><div class="flex items-center justify-between mb-4"><h2 class="font-semibold">К выполнению</h2><span id="todo-count" class="text-sm text-slate-500">0</span></div><div id="todo-column" class="space-y-3 min-h-24"></div></section>
+            <section class="bg-blue-50 rounded-xl p-4"><div class="flex items-center justify-between mb-4"><h2 class="font-semibold">В процессе</h2><span id="progress-count" class="text-sm text-slate-500">0</span></div><div id="progress-column" class="space-y-3 min-h-24"></div></section>
+            <section class="bg-emerald-50 rounded-xl p-4"><div class="flex items-center justify-between mb-4"><h2 class="font-semibold">Готово</h2><span id="done-count" class="text-sm text-slate-500">0</span></div><div id="done-column" class="space-y-3 min-h-24"></div></section>
+        </div>
+    </main>
+    <div class="mobile-nav-spacer"></div>
+    <nav class="mobile-bottom-nav sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-around items-center z-[100] shadow-[0_-4px_20px_-2px_rgba(0,0,0,0.08)]"><a href="/" id="nav-home" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Обзор</span></a><a href="/tasks" id="nav-tasks" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Задачи</span></a><a href="/reports" id="nav-reports" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Отчеты</span></a><a href="/calendar" id="nav-calendar" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Календарь</span></a></nav>
+    <script>document.getElementById('nav-tasks').classList.add('active');</script>
+    <script>
+        const columns = { todo: document.getElementById('todo-column'), in_progress: document.getElementById('progress-column'), done: document.getElementById('done-column') };
+        const counts = { todo: document.getElementById('todo-count'), in_progress: document.getElementById('progress-count'), done: document.getElementById('done-count') };
+        const errorBox = document.getElementById('tasks-error');
+
+        function formatTaskDate(value) {
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? 'Без даты' : date.toLocaleDateString('ru-RU');
+        }
+
+        function renderTask(task) {
+            const card = document.createElement('article');
+            
+            card.className = 'bg-white rounded-lg border border-slate-200 p-4 shadow-sm relative group';
+            
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity';
+            deleteBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+            deleteBtn.onclick = () => deleteTask(task.id);
+            card.appendChild(deleteBtn);
+
+            const title = document.createElement('h3');
+            title.className = 'font-medium text-slate-900 pr-6'; 
+            title.textContent = task.title;
+            
+            const description = document.createElement('p');
+            description.className = 'mt-2 text-sm text-slate-500';
+            description.textContent = task.description || 'Без описания';
+            
+            const footer = document.createElement('div');
+            footer.className = 'mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500 mb-3';
+            
+            const date = document.createElement('span');
+            date.textContent = formatTaskDate(task.due_date);
+            
+            const visibility = document.createElement('span');
+            visibility.className = task.visibility === 'public' ? 'rounded bg-emerald-50 px-2 py-1 text-emerald-700' : 'rounded bg-amber-50 px-2 py-1 text-amber-700';
+            visibility.textContent = task.visibility === 'public' ? 'Для всех' : 'Только мне';
+            
+            const author = document.createElement('span');
+            author.textContent = task.author_name || 'Автор неизвестен';
+            
+            footer.append(date, visibility, author);
+            card.append(title, description, footer);
+
+            // Кнопки управления статусом задачи
+            const actions = document.createElement('div');
+            actions.className = 'flex gap-2 mt-3 pt-3 border-t border-slate-100';
+
+            if (task.status === 'todo') {
+                actions.innerHTML = `<button onclick="changeTaskStatus(${task.id}, 'in_progress')" class="text-xs font-medium text-blue-600 hover:text-blue-800 transition">В работу 🚀</button>`;
+            } else if (task.status === 'in_progress') {
+                actions.innerHTML = `
+                    <button onclick="changeTaskStatus(${task.id}, 'done')" class="text-xs font-medium text-emerald-600 hover:text-emerald-800 transition">Готово ✅</button>
+                    <button onclick="changeTaskStatus(${task.id}, 'todo')" class="text-xs font-medium text-slate-500 hover:text-slate-700 transition">Отложить ⏸️</button>
+                `;
+            } else if (task.status === 'done') {
+                actions.innerHTML = `<button onclick="changeTaskStatus(${task.id}, 'in_progress')" class="text-xs font-medium text-slate-500 hover:text-blue-600 transition">Вернуть в работу ⏪</button>`;
+            }
+            
+            card.appendChild(actions);
+
+            return card;
+        }
+
+        function renderTasks(tasks) {
+            Object.values(columns).forEach((column) => column.replaceChildren());
+            Object.values(counts).forEach((count) => { count.textContent = '0'; });
+            (tasks || []).forEach((task) => {
+                const status = columns[task.status] ? task.status : 'todo';
+                columns[status].appendChild(renderTask(task));
+                counts[status].textContent = String(Number(counts[status].textContent) + 1);
+            });
+        }
+
+        async function loadTasks() {
+            errorBox.classList.add('hidden');
+            try {
+                const response = await fetch('/api/tasks');
+                if (!response.ok) throw new Error('Не удалось загрузить задачи');
+                renderTasks(await response.json());
+            } catch (error) {
+                errorBox.textContent = error.message;
+                errorBox.classList.remove('hidden');
+            }
+        }
+
+        // Вызов API для смены колонки (статуса)
+        async function changeTaskStatus(id, newStatus) {
+            try {
+                const response = await fetch(`/api/tasks/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                if (!response.ok) throw new Error('Ошибка при смене статуса');
+                await loadTasks(); 
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        
+        async function deleteTask(id) {
+            if (!confirm('Точно удалить эту задачу?')) return;
+            try {
+                const response = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error('Ошибка при удалении задачи');
+                await loadTasks(); // Перезагружаем доску после удаления
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        document.getElementById('refresh-tasks').addEventListener('click', loadTasks);
+        loadTasks();
+    </script>
+</body>
+</html>

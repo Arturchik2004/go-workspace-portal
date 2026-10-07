@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сотрудники - ПромТехСервис</title>
+    <link rel="icon" type="image/png" href="/static/logo-gray.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+    <header class="bg-white border-b border-slate-200"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between"><a href="/" class="text-xl font-bold text-slate-800">ПромТехСервис</a><div class="flex items-center gap-4 text-sm"><span>{{ .FullName }}</span><a href="/logout" class="text-red-600 hover:text-red-700">Выйти</a></div></div></header>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-8"><div><p class="text-sm font-medium text-blue-600">Управление доступом</p><h1 class="text-3xl font-bold">Сотрудники</h1><p class="mt-2 text-sm text-slate-500">Полный список активных учетных записей</p></div><a href="/" class="text-sm text-blue-600 hover:text-blue-700">К обзору</a></div>
+        <p id="employees-error" class="hidden mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" role="alert"></p>
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><div class="overflow-x-auto"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr><th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Сотрудник</th><th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Email</th><th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Роль</th><th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Добавлен</th>{{ if eq .Role "admin" }}<th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Действия</th>{{ end }}</tr></thead><tbody id="employees-body" class="divide-y divide-slate-200"></tbody></table></div></section>
+    </main>
+    <div class="mobile-nav-spacer"></div><nav class="mobile-bottom-nav sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-around items-center z-[100] shadow-[0_-4px_20px_-2px_rgba(0,0,0,0.08)]"><a href="/" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Обзор</span></a><a href="/tasks" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Задачи</span></a><a href="/reports" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Отчеты</span></a><a href="/calendar" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Календарь</span></a></nav>
+    <script>
+        const canDeleteEmployees = {{ eq .Role "admin" }};
+        const currentUserId = {{ .UserID }};
+        const body = document.getElementById('employees-body');
+        const errorBox = document.getElementById('employees-error');
+        const roleNames = { admin: 'Администратор', employee: 'Сотрудник', guest: 'Гость' };
+
+        function renderEmployee(user) {
+            const row = document.createElement('tr');
+            const name = document.createElement('td'); name.className = 'px-6 py-4 text-sm font-medium'; name.textContent = user.full_name;
+            const email = document.createElement('td'); email.className = 'px-6 py-4 text-sm text-slate-500'; email.textContent = user.email;
+            const role = document.createElement('td'); role.className = 'px-6 py-4 text-sm'; role.textContent = roleNames[user.role] || user.role;
+            const created = document.createElement('td'); created.className = 'px-6 py-4 text-sm text-slate-500'; created.textContent = new Date(user.created_at).toLocaleDateString('ru-RU');
+            row.append(name, email, role, created);
+            if (canDeleteEmployees && user.id !== 1 && (currentUserId === 1 || user.role !== 'admin')) {
+                const actions = document.createElement('td'); actions.className = 'px-6 py-4 text-right';
+                const button = document.createElement('button'); button.type = 'button'; button.className = 'text-sm font-medium text-red-600 hover:text-red-800'; button.textContent = 'Удалить'; button.addEventListener('click', () => deleteEmployee(user.id, user.full_name)); actions.appendChild(button); row.appendChild(actions);
+            }
+            return row;
+        }
+
+        async function loadEmployees() {
+            try { const response = await fetch('/api/users'); if (!response.ok) throw new Error('Не удалось загрузить сотрудников'); const users = await response.json() || []; body.replaceChildren(); users.forEach((user) => body.appendChild(renderEmployee(user))); } catch (error) { errorBox.textContent = error.message; errorBox.classList.remove('hidden'); }
+        }
+
+        async function deleteEmployee(id, fullName) {
+            if (!window.confirm(`Удалить сотрудника «${fullName}»?`)) return;
+            const response = await fetch(`/api/users/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+            if (!response.ok) { window.alert(await response.text() || 'Не удалось удалить сотрудника'); return; }
+            await loadEmployees();
+        }
+        document.getElementById('nav-home')?.classList.remove('active');
+        loadEmployees();
+    </script>
+</body>
+</html>

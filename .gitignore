@@ -1,0 +1,28 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Go build artifacts
+/server
+/bin/
+/dist/
+*.exe
+*.exe~
+*.test
+*.out
+coverage.*
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Игнор картинок
+*.png
+*.jpg
+*.jpeg
+*.gif

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Календарь - ПромТехСервис</title>
+    <link rel="icon" type="image/png" href="/static/logo-gray.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+    <header class="bg-white border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <a href="/" class="text-xl font-bold text-slate-800">ПромТехСервис</a>
+            <div class="flex items-center gap-4 text-sm"><span>{{ .FullName }}</span><a href="/logout" class="text-red-600 hover:text-red-700">Выйти</a></div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between mb-8">
+            <div><p class="text-sm font-medium text-blue-600">Планирование</p><h1 id="month-title" class="text-3xl font-bold">Календарь</h1><p class="mt-2 text-sm text-slate-500">Задачи команды и личные планы</p></div>
+            <div class="flex flex-wrap gap-2"><button id="previous-month" type="button" class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:bg-slate-50">Назад</button><button id="today-button" type="button" class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:bg-slate-50">Сегодня</button><button id="next-month" type="button" class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm hover:bg-slate-50">Вперёд</button><a href="/" class="px-3 py-2 text-sm text-blue-600 hover:text-blue-700">К обзору</a></div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
+            <section class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-semibold text-slate-500"><div class="p-3">Пн</div><div class="p-3">Вт</div><div class="p-3">Ср</div><div class="p-3">Чт</div><div class="p-3">Пт</div><div class="p-3">Сб</div><div class="p-3">Вс</div></div>
+                <div id="calendar-grid" class="grid grid-cols-7 auto-rows-[105px] sm:auto-rows-[135px]"></div>
+            </section>
+
+            <aside class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 h-fit">
+                <div class="flex items-center justify-between mb-4"><h2 class="font-semibold">Новая задача</h2><span id="selected-date-label" class="text-xs text-slate-500"></span></div>
+                <form id="task-form" class="space-y-4">
+                    <div><label for="task-title" class="block text-sm font-medium text-slate-700">Название</label><input id="task-title" maxlength="200" required class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Например, подготовить отчет"></div>
+                    <div><label for="task-description" class="block text-sm font-medium text-slate-700">Описание</label><textarea id="task-description" rows="3" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Детали задачи"></textarea></div>
+                    <div><label for="task-date" class="block text-sm font-medium text-slate-700">Дата</label><input id="task-date" type="date" required class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"></div>
+                    <div><label for="task-visibility" class="block text-sm font-medium text-slate-700">Показывать</label><select id="task-visibility" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"><option value="private">Только мне</option><option value="public">Всем сотрудникам</option></select></div>
+                    <p id="task-error" class="hidden text-sm text-red-600" role="alert"></p>
+                    <button type="submit" class="w-full px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">Добавить задачу</button>
+                </form>
+            </aside>
+        </div>
+    </main>
+
+    <script>
+        const calendarGrid = document.getElementById('calendar-grid');
+        const monthTitle = document.getElementById('month-title');
+        const taskForm = document.getElementById('task-form');
+        const taskDate = document.getElementById('task-date');
+        const selectedDateLabel = document.getElementById('selected-date-label');
+        const taskError = document.getElementById('task-error');
+        const today = new Date();
+        let displayedMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        let selectedDate = formatDate(today);
+        let tasks = [];
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function renderCalendar() {
+            const year = displayedMonth.getFullYear();
+            const month = displayedMonth.getMonth();
+            monthTitle.textContent = displayedMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+            calendarGrid.replaceChildren();
+            const firstDay = new Date(year, month, 1);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const leadingDays = (firstDay.getDay() + 6) % 7;
+            const previousMonthDays = new Date(year, month, 0).getDate();
+
+            for (let index = 0; index < 42; index += 1) {
+                const dayOffset = index - leadingDays + 1;
+                const date = new Date(year, month, dayOffset);
+                const dateString = formatDate(date);
+                const isCurrentMonth = dayOffset >= 1 && dayOffset <= daysInMonth;
+                const isToday = dateString === formatDate(today);
+                const cell = document.createElement('button');
+                cell.type = 'button';
+                cell.className = `relative border-b border-r border-slate-100 p-2 text-left text-sm hover:bg-blue-50 ${isCurrentMonth ? 'text-slate-700' : 'text-slate-400 bg-slate-50'} ${dateString === selectedDate ? 'ring-2 ring-inset ring-blue-500' : ''}`;
+                const number = document.createElement('span');
+                number.className = isToday ? 'inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 font-semibold text-white' : 'inline-flex h-7 w-7 items-center justify-center';
+                number.textContent = String(date.getDate());
+                cell.appendChild(number);
+                const dayTasks = tasks.filter((task) => task.due_date.slice(0, 10) === dateString);
+                dayTasks.slice(0, 2).forEach((task) => {
+                    const taskLabel = document.createElement('span');
+                    taskLabel.className = `mt-1 block truncate rounded px-1.5 py-1 text-xs ${task.visibility === 'public' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`;
+                    taskLabel.textContent = task.title;
+                    cell.appendChild(taskLabel);
+                });
+                if (dayTasks.length > 2) {
+                    const more = document.createElement('span');
+                    more.className = 'mt-1 block text-xs text-slate-500';
+                    more.textContent = `+ еще ${dayTasks.length - 2}`;
+                    cell.appendChild(more);
+                }
+                cell.addEventListener('click', () => {
+                    selectedDate = dateString;
+                    taskDate.value = dateString;
+                    selectedDateLabel.textContent = new Date(dateString + 'T00:00:00').toLocaleDateString('ru-RU');
+                    renderCalendar();
+                });
+                calendarGrid.appendChild(cell);
+            }
+        }
+
+        async function loadTasks() {
+            const response = await fetch('/api/tasks');
+            if (!response.ok) throw new Error('Не удалось загрузить задачи');
+            tasks = await response.json() || [];
+            renderCalendar();
+        }
+
+        taskForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            taskError.classList.add('hidden');
+            try {
+                const response = await fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: document.getElementById('task-title').value, description: document.getElementById('task-description').value, due_date: taskDate.value, visibility: document.getElementById('task-visibility').value }) });
+                if (!response.ok) throw new Error(await response.text());
+                taskForm.reset();
+                taskDate.value = selectedDate;
+                await loadTasks();
+            } catch (error) {
+                taskError.textContent = error.message || 'Не удалось добавить задачу';
+                taskError.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('previous-month').addEventListener('click', () => { displayedMonth.setMonth(displayedMonth.getMonth() - 1); renderCalendar(); });
+        document.getElementById('next-month').addEventListener('click', () => { displayedMonth.setMonth(displayedMonth.getMonth() + 1); renderCalendar(); });
+        document.getElementById('today-button').addEventListener('click', () => { displayedMonth = new Date(today.getFullYear(), today.getMonth(), 1); selectedDate = formatDate(today); taskDate.value = selectedDate; selectedDateLabel.textContent = today.toLocaleDateString('ru-RU'); renderCalendar(); });
+        taskDate.value = selectedDate;
+        selectedDateLabel.textContent = today.toLocaleDateString('ru-RU');
+        loadTasks().catch((error) => { taskError.textContent = error.message; taskError.classList.remove('hidden'); renderCalendar(); });
+    </script>
+    <div class="mobile-nav-spacer"></div>
+    <nav class="mobile-bottom-nav sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-around items-center z-[100] shadow-[0_-4px_20px_-2px_rgba(0,0,0,0.08)]"><a href="/" id="nav-home" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Обзор</span></a><a href="/tasks" id="nav-tasks" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Задачи</span></a><a href="/reports" id="nav-reports" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Отчеты</span></a><a href="/calendar" id="nav-calendar" class="mobile-nav-link flex flex-col items-center justify-center w-full h-full text-slate-400"><span class="text-[10px] font-medium">Календарь</span></a></nav>
+    <script>document.getElementById('nav-calendar').classList.add('active');</script>
+</body>
+</html>
